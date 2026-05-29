@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapPin, MessageCircle, Send, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MapPin, MessageCircle, Send, Users, Wifi, WifiOff } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 import { api, isLoggedIn, wsUrl } from '@/lib/api';
 import { $user } from '@/stores/auth';
+import { toast } from '@/hooks/use-toast';
 
 type Message = {
   id: string;
@@ -21,7 +22,13 @@ type Props = {
   embedded?: boolean;
 };
 
+type WsStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+
 const SYSTEM_TYPES = new Set(['sistema', 'sos', 'parada', 'gasolinera']);
+
+const WS_BASE_DELAY_MS = 2000;
+const WS_MAX_DELAY_MS = 32000;
+const WS_MAX_RECONNECT_ATTEMPTS = 8;
 
 function isSystemMessage(m: Message) {
   return SYSTEM_TYPES.has(m.type);
@@ -53,6 +60,42 @@ const DEMO_SYSTEM: Message = {
   user: { id: 'demo', username: 'ramon' },
 };
 
+function parseWsMessage(data: unknown): Message | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  if (typeof d.id !== 'string' || typeof d.content !== 'string') return null;
+  return {
+    id: d.id,
+    content: d.content,
+    type: (d.type as string) ?? 'texto',
+    created_at: (d.created_at as string) ?? new Date().toISOString(),
+    user: {
+      id: String(d.user_id ?? ''),
+      username: String(d.username ?? 'motero'),
+    },
+  };
+}
+
+function WsStatusBadge({ status }: { status: WsStatus }) {
+  if (status === 'idle' || status === 'connected') return null;
+
+  if (status === 'reconnecting' || status === 'connecting') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 ring-1 ring-amber-500/30">
+        <Wifi className="size-3 animate-pulse" />
+        Reconectando…
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive ring-1 ring-destructive/30">
+      <WifiOff className="size-3" />
+      Desconectado
+    </span>
+  );
+}
+
 export default function ChatPanel({
   rutaId,
   routeTitle = 'Chat de la ruta',
@@ -64,11 +107,30 @@ export default function ChatPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sharingLocation, setSharingLocation] = useState(false);
+  const [wsStatus, setWsStatus] = useState<WsStatus>('idle');
+
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intentionalCloseRef = useRef(false);
+  const wasConnectedRef = useRef(false);
 
   const active = activeCount ?? participantCount;
+
+  const appendMessage = useCallback((incoming: Message) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === incoming.id)) return prev;
+      return [...prev, incoming];
+    });
+  }, []);
+
+  const loadMessages = useCallback(() => {
+    return api<Message[]>(`/rutas/${rutaId}/mensajes`)
+      .then(setMessages)
+      .catch(() => setMessages([]));
+  }, [rutaId]);
 
   const displayMessages = useMemo(() => {
     const hasSystem = messages.some(isSystemMessage);
@@ -83,35 +145,107 @@ export default function ChatPanel({
   );
 
   useEffect(() => {
-    api<Message[]>(`/rutas/${rutaId}/mensajes`)
-      .then(setMessages)
-      .catch(() => setMessages([]));
-  }, [rutaId]);
+    loadMessages();
+  }, [loadMessages]);
 
   useEffect(() => {
-    if (!isLoggedIn()) return;
-    const ws = new WebSocket(wsUrl(`/ws/chat/${rutaId}`));
-    wsRef.current = ws;
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        const incoming: Message = {
-          id: data.id,
-          content: data.content,
-          type: data.type ?? 'texto',
-          created_at: data.created_at,
-          user: { id: data.user_id, username: data.username },
-        };
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === incoming.id)) return prev;
-          return [...prev, incoming];
-        });
-      } catch {
-        /* ignore */
+    if (!isLoggedIn()) {
+      setWsStatus('idle');
+      return;
+    }
+
+    intentionalCloseRef.current = false;
+    reconnectAttemptRef.current = 0;
+    wasConnectedRef.current = false;
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
     };
-    return () => ws.close();
-  }, [rutaId]);
+
+    const scheduleReconnect = () => {
+      if (intentionalCloseRef.current) return;
+
+      if (reconnectAttemptRef.current >= WS_MAX_RECONNECT_ATTEMPTS) {
+        setWsStatus('disconnected');
+        return;
+      }
+
+      const delay = Math.min(
+        WS_BASE_DELAY_MS * 2 ** reconnectAttemptRef.current,
+        WS_MAX_DELAY_MS,
+      );
+      reconnectAttemptRef.current += 1;
+      setWsStatus('reconnecting');
+
+      clearReconnectTimer();
+      reconnectTimerRef.current = setTimeout(() => {
+        connect();
+      }, delay);
+    };
+
+    const connect = () => {
+      if (intentionalCloseRef.current) return;
+
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
+      setWsStatus(reconnectAttemptRef.current === 0 ? 'connecting' : 'reconnecting');
+
+      const ws = new WebSocket(wsUrl(`/ws/chat/${rutaId}`));
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (intentionalCloseRef.current) {
+          ws.close();
+          return;
+        }
+        reconnectAttemptRef.current = 0;
+        setWsStatus('connected');
+
+        if (wasConnectedRef.current) {
+          loadMessages();
+        }
+        wasConnectedRef.current = true;
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const incoming = parseWsMessage(JSON.parse(ev.data));
+          if (incoming) appendMessage(incoming);
+        } catch {
+          /* ignore malformed payloads */
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      ws.onclose = () => {
+        if (wsRef.current === ws) wsRef.current = null;
+        if (!intentionalCloseRef.current) scheduleReconnect();
+      };
+    };
+
+    connect();
+
+    return () => {
+      intentionalCloseRef.current = true;
+      clearReconnectTimer();
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setWsStatus('idle');
+    };
+  }, [rutaId, appendMessage, loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,18 +256,12 @@ export default function ChatPanel({
       method: 'POST',
       body: JSON.stringify({ content, type }),
     });
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === created.id)) return prev;
-      return [
-        ...prev,
-        {
-          id: created.id,
-          content: created.content,
-          type: created.type,
-          created_at: created.created_at,
-          user: { id: created.user.id, username: created.user.username },
-        },
-      ];
+    appendMessage({
+      id: created.id,
+      content: created.content,
+      type: created.type,
+      created_at: created.created_at,
+      user: { id: created.user.id, username: created.user.username },
     });
   }
 
@@ -143,8 +271,13 @@ export default function ChatPanel({
     setText('');
     try {
       await postMessage(trimmed, 'texto');
-    } catch {
+    } catch (e) {
       setText(trimmed);
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo enviar',
+        description: e instanceof Error ? e.message : 'Comprueba tu conexión',
+      });
     }
   }
 
@@ -159,13 +292,21 @@ export default function ChatPanel({
         try {
           await postMessage(content, 'texto');
         } catch {
-          alert('No se pudo compartir la ubicación');
+          toast({
+            variant: 'destructive',
+            title: 'Ubicación no enviada',
+            description: 'No se pudo compartir con el grupo',
+          });
         } finally {
           setSharingLocation(false);
         }
       },
       () => {
-        alert('Activa la ubicación para compartirla con el grupo');
+        toast({
+          variant: 'destructive',
+          title: 'Ubicación desactivada',
+          description: 'Activa el GPS para compartir tu posición',
+        });
         setSharingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 12000 },
@@ -176,14 +317,16 @@ export default function ChatPanel({
     <div
       className={`flex flex-1 flex-col ${embedded ? 'min-h-0' : 'min-h-[min(520px,60dvh)]'} ${embedded ? '' : '-mx-4'}`}
     >
-      {/* Cabecera */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/30">
             <MessageCircle className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm font-bold leading-tight">{routeTitle}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-sm font-bold leading-tight">{routeTitle}</h2>
+              <WsStatusBadge status={wsStatus} />
+            </div>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Users className="size-3.5 text-accent" />
               <span>
@@ -197,7 +340,6 @@ export default function ChatPanel({
         </div>
       </header>
 
-      {/* Mensajes */}
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-2">
         {showDemoHint && (
           <div className="mx-auto max-w-[95%] rounded-xl border border-dashed border-accent/40 bg-accent/5 px-3 py-2 text-center">
@@ -266,7 +408,6 @@ export default function ChatPanel({
         <div ref={bottomRef} />
       </div>
 
-      {/* Input inferior */}
       <div className="shrink-0 border-t border-border bg-background px-3 py-3">
         {!isLoggedIn() && (
           <a

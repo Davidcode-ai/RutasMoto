@@ -30,6 +30,71 @@ export function isLoggedIn(): boolean {
   return !!getTokens()?.access_token;
 }
 
+let isRefreshing = false;
+type RefreshSubscriber = {
+  resolve: (accessToken: string) => void;
+  reject: (error: Error) => void;
+};
+let refreshSubscribers: RefreshSubscriber[] = [];
+
+function subscribeTokenRefresh(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    refreshSubscribers.push({ resolve, reject });
+  });
+}
+
+function flushRefreshQueue(accessToken: string) {
+  refreshSubscribers.forEach(({ resolve }) => resolve(accessToken));
+  refreshSubscribers = [];
+}
+
+function rejectRefreshQueue(error: Error) {
+  refreshSubscribers.forEach(({ reject }) => reject(error));
+  refreshSubscribers = [];
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const tokens = getTokens();
+  if (!tokens?.refresh_token) {
+    const err = new Error('Sesión expirada');
+    clearTokens();
+    throw err;
+  }
+
+  if (isRefreshing) {
+    return subscribeTokenRefresh();
+  }
+
+  isRefreshing = true;
+  try {
+    const refreshed = await fetch(`${apiBase()}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!refreshed.ok) {
+      clearTokens();
+      const err = new Error('Sesión expirada');
+      rejectRefreshQueue(err);
+      throw err;
+    }
+
+    const newTokens = (await refreshed.json()) as TokenPair;
+    setTokens(newTokens);
+    flushRefreshQueue(newTokens.access_token);
+    return newTokens.access_token;
+  } catch (e) {
+    clearTokens();
+    const err = e instanceof Error ? e : new Error('Sesión expirada');
+    rejectRefreshQueue(err);
+    throw err;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const tokens = getTokens();
   const headers: Record<string, string> = {
@@ -45,25 +110,15 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401 && tokens?.refresh_token) {
-    const refreshed = await fetch(`${apiBase()}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (refreshed.ok) {
-      const newTokens = (await refreshed.json()) as TokenPair;
-      setTokens(newTokens);
-      headers['Authorization'] = `Bearer ${newTokens.access_token}`;
-      const retry = await fetch(url, { ...options, headers });
-      if (!retry.ok) {
-        const t = await retry.text();
-        throw new Error(parseError(t));
-      }
-      if (retry.status === 204) return undefined as T;
-      return retry.json() as Promise<T>;
+    const accessToken = await refreshAccessToken();
+    headers['Authorization'] = `Bearer ${accessToken}`;
+    const retry = await fetch(url, { ...options, headers });
+    if (!retry.ok) {
+      const t = await retry.text();
+      throw new Error(parseError(t));
     }
-    clearTokens();
+    if (retry.status === 204) return undefined as T;
+    return retry.json() as Promise<T>;
   }
 
   if (!res.ok) {

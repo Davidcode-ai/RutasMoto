@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { api, isLoggedIn } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 
 type PaceOption = {
   id: string;
@@ -71,7 +72,7 @@ type Props = {
   routeTitle?: string;
   routeDate?: string;
   waypoints: string[];
-  /** Puntos extra habituales (ej. Jerez, Paterna) además de los waypoints */
+  /** Puntos de salida adicionales (opcional), además de los waypoints de la ruta */
   extraOrigins?: string[];
   onJoined: () => void;
 };
@@ -83,7 +84,7 @@ export function JoinRouteSheet({
   routeTitle = 'la ruta',
   routeDate,
   waypoints,
-  extraOrigins = ['Jerez', 'Paterna'],
+  extraOrigins = [],
   onJoined,
 }: Props) {
   const originOptions = useMemo(() => {
@@ -146,7 +147,14 @@ export function JoinRouteSheet({
   const canConfirm = !overrideBike || customBike.trim().length > 0;
 
   async function handleConfirm() {
-    if (!canConfirm) return;
+    if (!canConfirm) {
+      toast({
+        variant: 'destructive',
+        title: 'Moto incompleta',
+        description: 'Indica el modelo de moto para esta ruta',
+      });
+      return;
+    }
     setLoading(true);
     try {
       await api(`/rutas/${rutaId}/inscripciones`, {
@@ -158,6 +166,10 @@ export function JoinRouteSheet({
         }),
       });
       setConfirmed(true);
+      toast({
+        title: '¡Te uniste a la ruta!',
+        description: `Salida desde ${origin}`,
+      });
       setTimeout(() => {
         onJoined();
         onClose();
@@ -166,11 +178,16 @@ export function JoinRouteSheet({
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al unirse';
       if (msg.includes('Ya estás inscrito')) {
+        toast({ title: 'Ya estabas inscrito', description: 'Tu asistencia ya estaba confirmada' });
         onJoined();
         onClose();
         return;
       }
-      alert(msg);
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo confirmar',
+        description: msg,
+      });
     } finally {
       setLoading(false);
     }

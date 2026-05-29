@@ -3,7 +3,7 @@ import { AlertTriangle, Coffee, Fuel, Radio, X } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 import { api, isLoggedIn, wsUrl } from '@/lib/api';
 import { $user } from '@/stores/auth';
-import GlovesMiniMap, { type MapPoint } from '@/components/guantes/GlovesMiniMap';
+import GlovesMiniMap, { type MapPoint, type UserMapLocation } from '@/components/guantes/GlovesMiniMap';
 
 type TrackingPos = { user_id: string; username: string; lat: number; lng: number };
 
@@ -27,7 +27,7 @@ export default function GlovesMode({
   organizerName = 'Road Leader',
 }: Props) {
   const user = useStore($user);
-  const [userPos, setUserPos] = useState<MapPoint | null>(null);
+  const [userPos, setUserPos] = useState<UserMapLocation | null>(null);
   const [positions, setPositions] = useState<TrackingPos[]>([]);
   const [sent, setSent] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -74,8 +74,8 @@ export default function GlovesMode({
 
     const ws = new WebSocket(wsUrl(`/ws/tracking/${rutaId}`));
 
-    const pushLocation = (lat: number, lng: number) => {
-      setUserPos({ lat, lng });
+    const pushLocation = (lat: number, lng: number, heading: number | null) => {
+      setUserPos({ lat, lng, heading });
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ lat, lng }));
       }
@@ -83,9 +83,16 @@ export default function GlovesMode({
 
     if (navigator.geolocation && watchId == null) {
       watchId = navigator.geolocation.watchPosition(
-        (pos) => pushLocation(pos.coords.latitude, pos.coords.longitude),
+        (pos) => {
+          const { latitude, longitude, heading, speed } = pos.coords;
+          const hasHeading =
+            heading != null &&
+            Number.isFinite(heading) &&
+            (speed == null || speed > 0.5);
+          pushLocation(latitude, longitude, hasHeading ? heading : null);
+        },
         undefined,
-        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
       );
     }
 
@@ -109,6 +116,50 @@ export default function GlovesMode({
       clearInterval(poll);
     };
   }, [open, rutaId, mergePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (!('wakeLock' in navigator)) {
+      console.warn('[MotoRutas] Screen Wake Lock no soportado en este navegador.');
+      return;
+    }
+
+    let sentinel: WakeLockSentinel | null = null;
+    let aborted = false;
+
+    const acquireWakeLock = async () => {
+      if (aborted || document.visibilityState !== 'visible') return;
+      if (sentinel && !sentinel.released) return;
+
+      try {
+        sentinel = await navigator.wakeLock.request('screen');
+        sentinel.addEventListener('release', () => {
+          sentinel = null;
+        });
+      } catch (err) {
+        console.warn('[MotoRutas] No se pudo mantener la pantalla encendida:', err);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void acquireWakeLock();
+      }
+    };
+
+    void acquireWakeLock();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      aborted = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (sentinel && !sentinel.released) {
+        void sentinel.release().catch(() => {});
+      }
+      sentinel = null;
+    };
+  }, [open]);
 
   if (!open) return null;
 

@@ -52,7 +52,10 @@ export async function loadProfile() {
   }
 
   try {
-    const rutas = await api<{ id: string; organizer: { id: string } }[]>('/rutas');
+    const page = await api<{
+      items: { id: string; organizer: { id: string } }[];
+    }>('/rutas?skip=0&limit=100');
+    const rutas = page.items;
     const created = rutas.filter((r) => r.organizer.id === user.id).length;
     $profileStats.set({
       completed: Math.max(0, created * 3),

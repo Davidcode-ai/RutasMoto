@@ -279,7 +279,6 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
             : undefined
         }
         waypoints={waypointNames}
-        extraOrigins={['Jerez', 'Paterna']}
         onJoined={loadRuta}
       />
     </main>

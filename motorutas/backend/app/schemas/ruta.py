@@ -80,6 +80,15 @@ class RutaListItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RutaListPage(BaseModel):
+    """Respuesta paginada para listados de rutas."""
+
+    items: list[RutaListItem]
+    total: int
+    skip: int
+    limit: int
+
+
 class RutaDetail(BaseModel):
     id: UUID
     title: str

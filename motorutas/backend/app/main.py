@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
     try:
         from app.scripts.seed import seed
 
-        await seed()
+        inserted = await seed()
+        if not inserted:
+            print("[motorutas] Seed omitido: datos demo ya presentes")
     except Exception as exc:
         print(f"[motorutas] seed: {exc}")
     yield
