@@ -11,7 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import MapboxMap from '@/components/map/MapboxMap';
+import OpenMap from '@/components/map/OpenMap';
 import ChatPanel from '@/components/chat/ChatPanel';
 import LiveTracker from '@/components/tracking/LiveTracker';
 import GlovesMode from '@/components/guantes/GlovesMode';
@@ -76,7 +76,7 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
 
   if (!rutaId) {
     return (
-      <main className="flex min-h-dvh w-full items-center justify-center">
+      <main className="flex min-h-app w-full items-center justify-center">
         <p className="text-muted-foreground">Ruta no especificada</p>
       </main>
     );
@@ -84,7 +84,7 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
 
   if (!ruta) {
     return (
-      <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-4 px-4">
+      <main className="flex min-h-app w-full flex-col items-center justify-center gap-4 px-4">
         {loadError ? (
           <>
             <p className="text-center text-destructive">{loadError}</p>
@@ -113,7 +113,7 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
     .map((i) => ({ username: i.user?.username || 'Motero', avatar_url: i.user?.avatar_url }));
 
   return (
-    <main className="flex min-h-dvh w-full flex-col bg-background">
+    <main className="flex min-h-app w-full flex-col bg-background">
       {ruta.live_tracking && (
         <LiveTracker
           rutaId={rutaId}
@@ -135,14 +135,14 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
         organizerName={ruta.organizer.username}
       />
 
-      <div className="relative h-[45vh] min-h-[320px] shrink-0">
-        <MapboxMap
+      <div className="relative map-pane-route-detail w-full">
+        <OpenMap
           waypoints={ruta.waypoints}
           riders={positions}
           clusterRiders={clusterRiders}
           weatherAlerts={weatherAlerts}
         />
-        <header className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-4">
+        <header className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-safe">
           <a
             href="/"
             className="flex size-11 items-center justify-center rounded-full bg-card/80 ring-1 ring-border backdrop-blur"
@@ -219,7 +219,7 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
         </div>
 
         {tab === 'asistentes' ? (
-          <div className="flex-1 overflow-y-auto px-4 pb-44 pt-4">
+          <div className="flex-1 overflow-y-auto px-4 pb-scroll-above-dock pt-4">
             <div className="space-y-3">
               {ruta.inscripciones.map((ins) => (
                 <RiderCard key={ins.id} rider={ins} />
@@ -243,8 +243,8 @@ export default function RouteDetailApp({ rutaId: rutaIdProp }: { rutaId?: string
       </section>
 
       {tab === 'asistentes' && (
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30">
-        <div className="pointer-events-auto bg-gradient-to-t from-background via-background to-transparent px-4 pb-5 pt-8">
+      <div className="app-dock-bottom pointer-events-none">
+        <div className="app-dock-bottom-inner pointer-events-auto bg-gradient-to-t from-background via-background to-transparent px-4 pt-8">
           <button
             onClick={() => setJoinOpen(true)}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30"

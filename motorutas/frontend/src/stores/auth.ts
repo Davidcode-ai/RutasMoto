@@ -12,6 +12,25 @@ export type User = {
 export const $user = atom<User | null>(null);
 export const $authLoading = atom(true);
 
+export const GUEST_MODE_KEY = 'guest_mode';
+
+export function isGuestMode(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  return sessionStorage.getItem(GUEST_MODE_KEY) === 'true';
+}
+
+export function setGuestMode(): void {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(GUEST_MODE_KEY, 'true');
+  }
+}
+
+export function clearGuestMode(): void {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(GUEST_MODE_KEY);
+  }
+}
+
 export async function loadUser() {
   $authLoading.set(true);
   try {
@@ -30,6 +49,7 @@ export async function login(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   setTokens(tokens);
+  clearGuestMode();
   await loadUser();
 }
 
@@ -44,11 +64,13 @@ export async function register(data: {
     body: JSON.stringify(data),
   });
   setTokens(tokens);
+  clearGuestMode();
   await loadUser();
 }
 
 export function logout() {
   clearTokens();
+  clearGuestMode();
   $user.set(null);
 }
 

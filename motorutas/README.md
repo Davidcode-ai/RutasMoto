@@ -38,7 +38,7 @@ Abre http://127.0.0.1:4321
 
 `motorutas/frontend/.env`:
 ```
-PUBLIC_MAPBOX_TOKEN=tu_token_mapbox
+# Mapas: OpenStreetMap + Leaflet (sin API key)
 ```
 
 ## Docker

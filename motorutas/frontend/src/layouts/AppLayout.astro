@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import Toaster from '@/components/ui/Toaster';
+import InstallPrompt from '@/components/pwa/InstallPrompt';
 
 interface Props {
   title?: string;
@@ -11,7 +12,7 @@ const { title = 'MotoRutas', description = 'Organiza rutas en moto sin el caos d
 ---
 
 <!doctype html>
-<html lang="es" class="bg-background">
+<html lang="es" class="bg-background app-native">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -28,13 +29,14 @@ const { title = 'MotoRutas', description = 'Organiza rutas en moto sin el caos d
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <title>{title}</title>
   </head>
-  <body class="min-h-dvh w-full">
-    <div class="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
+  <body class="app-native min-h-app w-full overflow-x-hidden">
+    <div class="app-shell flex min-h-app w-full flex-col bg-background">
       <slot />
       <Toaster client:only="react" />
+      <InstallPrompt client:only="react" />
     </div>
     <script is:inline>
       if ('serviceWorker' in navigator) {

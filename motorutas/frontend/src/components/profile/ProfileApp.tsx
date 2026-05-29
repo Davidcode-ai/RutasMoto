@@ -29,7 +29,69 @@ import {
   addMoto,
   updateMoto,
 } from '@/stores/profile';
+import { $canInstall, $isInstalled, hydrateInstallState, promptInstall } from '@/stores/pwa-install';
 import { apiPaceFromPace, paceFromApi, paceMeta, paceStyles, type Pace } from '@/lib/route-data';
+
+function SettingsSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const canInstall = useStore($canInstall);
+  const isInstalled = useStore($isInstalled);
+  const showInstall = canInstall && !isInstalled;
+
+  if (!open) return null;
+
+  async function handleInstallApp() {
+    const outcome = await promptInstall();
+    if (outcome === 'unavailable') {
+      alert('La instalación no está disponible en este navegador. Prueba con Chrome en Android.');
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Cerrar" onClick={onClose} className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
+      <div className="relative z-10 w-full max-w-md rounded-t-3xl border-t border-border bg-card px-4 pb-8 pt-3">
+        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border" />
+        <h2 className="mb-4 text-lg font-bold">Ajustes</h2>
+        <ul className="space-y-2 text-sm">
+          {showInstall && (
+            <li>
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="flex w-full items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 font-semibold text-primary"
+              >
+                📱 Instalar App
+              </button>
+            </li>
+          )}
+          <li className="rounded-xl border border-border bg-background px-4 py-3 text-muted-foreground">
+            Notificaciones push — próximamente
+          </li>
+          <li className="rounded-xl border border-border bg-background px-4 py-3 text-muted-foreground">
+            Modo guantes por defecto — próximamente
+          </li>
+        </ul>
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            window.location.href = '/auth/login';
+          }}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 py-3 font-semibold text-destructive"
+        >
+          <LogOut className="size-4" />
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function EditProfileSheet({
   open,
@@ -193,38 +255,6 @@ function EditMotoSheet({
   );
 }
 
-function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
-      <button type="button" aria-label="Cerrar" onClick={onClose} className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-md rounded-t-3xl border-t border-border bg-card px-4 pb-8 pt-3">
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border" />
-        <h2 className="mb-4 text-lg font-bold">Ajustes</h2>
-        <ul className="space-y-2 text-sm">
-          <li className="rounded-xl border border-border bg-background px-4 py-3 text-muted-foreground">
-            Notificaciones push — próximamente
-          </li>
-          <li className="rounded-xl border border-border bg-background px-4 py-3 text-muted-foreground">
-            Modo guantes por defecto — próximamente
-          </li>
-        </ul>
-        <button
-          type="button"
-          onClick={() => {
-            logout();
-            window.location.href = '/auth/login';
-          }}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 py-3 font-semibold text-destructive"
-        >
-          <LogOut className="size-4" />
-          Cerrar sesión
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function ProfileApp() {
   const user = useStore($user);
   const authLoading = useStore($authLoading);
@@ -238,11 +268,12 @@ export default function ProfileApp() {
 
   useEffect(() => {
     loadProfile();
+    hydrateInstallState();
   }, []);
 
   if (authLoading || profileLoading) {
     return (
-      <main className="flex min-h-dvh w-full items-center justify-center">
+      <main className="flex min-h-app w-full items-center justify-center">
         <p className="text-muted-foreground">Cargando garaje…</p>
       </main>
     );
@@ -250,7 +281,7 @@ export default function ProfileApp() {
 
   if (!user) {
     return (
-      <main className="flex min-h-dvh w-full flex-col items-center justify-center px-4">
+      <main className="flex min-h-app w-full flex-col items-center justify-center px-4">
         <Bike className="mb-4 size-12 text-primary" />
         <p className="mb-2 text-center text-lg font-bold">Tu garaje te espera</p>
         <p className="mb-6 text-center text-sm text-muted-foreground">
@@ -285,7 +316,7 @@ export default function ProfileApp() {
   const handle = `@${user.username}`;
 
   return (
-    <main className="flex min-h-dvh w-full flex-col bg-background pb-10">
+    <main className="flex min-h-app w-full flex-col bg-background pb-safe-page">
       <header className="flex items-center justify-between px-4 pt-4">
         <a
           href="/"

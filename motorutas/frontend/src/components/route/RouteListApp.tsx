@@ -168,7 +168,7 @@ export default function RouteListApp() {
   }, [isLoading, error, items.length, hasMore]);
 
   return (
-    <main className="flex min-h-dvh w-full flex-1 flex-col bg-background pb-10">
+    <main className="flex min-h-app w-full flex-1 flex-col bg-background pb-safe-page">
       <header className="flex items-center justify-between px-4 pt-6">
         <div>
           <h1 className="text-2xl font-bold text-primary">MotoRutas</h1>

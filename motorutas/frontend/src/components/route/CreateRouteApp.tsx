@@ -146,7 +146,7 @@ export default function CreateRouteApp() {
 
   if (!authReady) {
     return (
-      <main className="flex min-h-dvh w-full items-center justify-center">
+      <main className="flex min-h-app w-full items-center justify-center">
         <p className="text-muted-foreground">Cargando…</p>
       </main>
     );
@@ -154,7 +154,7 @@ export default function CreateRouteApp() {
 
   if (!isLoggedIn()) {
     return (
-      <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-4 px-4">
+      <main className="flex min-h-app w-full flex-col items-center justify-center gap-4 px-4">
         <p className="text-center text-muted-foreground">Inicia sesión para crear una ruta como Road Leader</p>
         <a href="/auth/login" className="rounded-2xl bg-primary px-8 py-3 font-bold text-primary-foreground">
           Iniciar sesión
@@ -167,8 +167,8 @@ export default function CreateRouteApp() {
   }
 
   return (
-    <main className="flex min-h-dvh w-full flex-col bg-background">
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
+    <main className="flex min-h-app w-full flex-col bg-background">
+      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 pb-3 pt-safe backdrop-blur">
         <a
           href="/"
           aria-label="Volver"
@@ -182,7 +182,7 @@ export default function CreateRouteApp() {
         </div>
       </header>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 pb-36">
+      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 pb-scroll-above-dock">
         {/* 1. Datos básicos */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -371,8 +371,8 @@ export default function CreateRouteApp() {
         </section>
       </div>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30">
-        <div className="pointer-events-auto bg-gradient-to-t from-background via-background to-transparent px-4 pb-6 pt-8">
+      <div className="app-dock-bottom pointer-events-none">
+        <div className="app-dock-bottom-inner pointer-events-auto bg-gradient-to-t from-background via-background to-transparent px-4 pt-8">
           <button
             type="button"
             onClick={handleCreate}

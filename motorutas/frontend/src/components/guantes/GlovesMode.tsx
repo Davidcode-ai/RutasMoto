@@ -187,16 +187,16 @@ export default function GlovesMode({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex w-full flex-col bg-black text-white"
+      className="fixed inset-0 z-[100] flex min-h-app w-full flex-col bg-black text-white"
       role="dialog"
       aria-modal="true"
       aria-label="Modo guantes en ruta"
     >
       {/* Mapa — mitad superior */}
-      <div className="relative h-[50dvh] min-h-[200px] shrink-0 border-b-4 border-white">
+      <div className="relative map-pane-gloves w-full border-b-4 border-white">
         <GlovesMiniMap route={routePoints} user={userPos} leader={leaderPos} />
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-between p-3">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-between p-3 pt-safe">
           <div className="rounded-xl bg-black/80 px-3 py-2 ring-2 ring-white">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#a3e635]">Modo Guantes</p>
             <p className="text-sm font-black">EN RUTA</p>
@@ -229,7 +229,7 @@ export default function GlovesMode({
       )}
 
       {/* Botonera — mitad inferior */}
-      <div className="flex flex-1 flex-col gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="flex flex-1 flex-col gap-3 p-3 pb-safe">
         <button
           type="button"
           disabled={sending}

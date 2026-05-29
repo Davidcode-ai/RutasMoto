@@ -29,7 +29,7 @@ export default function AuthForm({ mode }: Props) {
   }
 
   return (
-    <main className="flex min-h-dvh w-full flex-col justify-center px-4">
+    <main className="flex min-h-app w-full flex-col justify-center px-4 pb-safe">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-primary">MotoRutas</h1>
         <p className="mt-2 text-sm text-muted-foreground">

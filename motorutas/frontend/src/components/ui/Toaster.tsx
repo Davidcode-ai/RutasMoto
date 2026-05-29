@@ -8,7 +8,7 @@ export default function Toaster() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 top-0 z-[200] mx-auto flex max-w-md flex-col gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[200] mx-auto flex max-w-md flex-col gap-2 p-4 pt-safe"
       aria-live="polite"
     >
       {toasts.map((t) => (

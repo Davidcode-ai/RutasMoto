@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "demo-1",
+        "name": "Radar A-381 (demo)",
+        "maxspeed": "90"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-5.927, 36.461]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "demo-2",
+        "name": "Radar CA-3113 (demo)",
+        "maxspeed": "80"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-5.52, 36.68]
+      }
+    }
+  ]
+}

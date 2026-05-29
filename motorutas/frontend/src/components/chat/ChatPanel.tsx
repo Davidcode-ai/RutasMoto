@@ -408,7 +408,7 @@ export default function ChatPanel({
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-3 py-3">
+      <div className="shrink-0 border-t border-border bg-background px-3 py-3 pb-safe">
         {!isLoggedIn() && (
           <a
             href="/auth/login"

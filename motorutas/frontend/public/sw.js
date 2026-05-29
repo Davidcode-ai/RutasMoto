@@ -1,12 +1,12 @@
-const CACHE_APP = 'motorutas-app-v1';
-const CACHE_MAPBOX = 'motorutas-mapbox-v1';
-const PRECACHE = ['/manifest.json', '/icon.svg'];
+const CACHE_APP = 'motorutas-app-v2';
+const CACHE_OSM = 'motorutas-osm-tiles-v1';
+const PRECACHE = ['/manifest.json', '/icon.svg', '/radares.geojson'];
 
-/** Máximo de tiles/recursos Mapbox en caché (LRU). */
-const MAPBOX_MAX_ENTRIES = 80;
-const MAPBOX_INDEX_URL = 'https://motorutas.internal/__mapbox_lru_index__';
+/** Máximo de tiles OSM en caché (LRU). */
+const OSM_MAX_ENTRIES = 100;
+const OSM_INDEX_URL = 'https://motorutas.internal/__osm_lru_index__';
 
-const ALLOWED_CACHES = new Set([CACHE_APP, CACHE_MAPBOX]);
+const ALLOWED_CACHES = new Set([CACHE_APP, CACHE_OSM]);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,33 +24,12 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-function isMapboxCacheable(url) {
-  const host = url.hostname;
-  if (!host.endsWith('.mapbox.com') && host !== 'mapbox.com') return false;
-  if (host === 'events.mapbox.com') return false;
-
-  const path = url.pathname;
-  if (path.includes('/events/') || path.includes('/feedback') || path.includes('/map-sessions')) {
-    return false;
-  }
-
-  if (host.startsWith('tiles.')) return true;
-
-  if (host === 'api.mapbox.com') {
-    return (
-      path.includes('/styles/') ||
-      path.includes('/v4/') ||
-      path.includes('/fonts/') ||
-      path.includes('/raster') ||
-      path.includes('/tileset')
-    );
-  }
-
-  return false;
+function isOsmTileRequest(url) {
+  return url.hostname === 'tile.openstreetmap.org' || url.hostname.endsWith('.tile.openstreetmap.org');
 }
 
-async function readMapboxIndex(cache) {
-  const res = await cache.match(MAPBOX_INDEX_URL);
+async function readOsmIndex(cache) {
+  const res = await cache.match(OSM_INDEX_URL);
   if (!res) return [];
   try {
     const list = await res.json();
@@ -60,38 +39,32 @@ async function readMapboxIndex(cache) {
   }
 }
 
-async function writeMapboxIndex(cache, urls) {
-  await cache.put(MAPBOX_INDEX_URL, new Response(JSON.stringify(urls)));
+async function writeOsmIndex(cache, urls) {
+  await cache.put(OSM_INDEX_URL, new Response(JSON.stringify(urls)));
 }
 
-/** Registra URL en LRU y elimina entradas antiguas si supera el límite. */
-async function trackMapboxEntry(cache, requestUrl) {
-  let urls = await readMapboxIndex(cache);
+async function trackOsmEntry(cache, requestUrl) {
+  let urls = await readOsmIndex(cache);
   urls = urls.filter((u) => u !== requestUrl);
   urls.push(requestUrl);
 
-  while (urls.length > MAPBOX_MAX_ENTRIES) {
+  while (urls.length > OSM_MAX_ENTRIES) {
     const oldest = urls.shift();
     if (oldest) await cache.delete(oldest);
   }
 
-  await writeMapboxIndex(cache, urls);
+  await writeOsmIndex(cache, urls);
 }
 
-/**
- * Stale-While-Revalidate para tiles Mapbox:
- * - Online: respuesta en caché al instante + actualización en segundo plano.
- * - Offline: sirve la última versión cacheada.
- */
-async function mapboxStaleWhileRevalidate(request, waitUntil) {
-  const cache = await caches.open(CACHE_MAPBOX);
+async function osmStaleWhileRevalidate(request, waitUntil) {
+  const cache = await caches.open(CACHE_OSM);
   const cached = await cache.match(request);
 
   const networkFetch = fetch(request)
     .then(async (response) => {
       if (response.ok) {
         await cache.put(request, response.clone());
-        await trackMapboxEntry(cache, request.url);
+        await trackOsmEntry(cache, request.url);
       }
       return response;
     })
@@ -113,14 +86,13 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // API propia y WebSockets: solo red (sin interceptar caché).
   if (url.pathname.startsWith('/api') || url.pathname.startsWith('/ws')) {
     return;
   }
 
-  if (isMapboxCacheable(url)) {
+  if (isOsmTileRequest(url)) {
     event.respondWith(
-      mapboxStaleWhileRevalidate(event.request, (promise) => event.waitUntil(promise)),
+      osmStaleWhileRevalidate(event.request, (promise) => event.waitUntil(promise)),
     );
     return;
   }
@@ -136,7 +108,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets de la app (mismo origen): network-first con fallback a caché.
   event.respondWith(
     fetch(event.request)
       .then((response) => {

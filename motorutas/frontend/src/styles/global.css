@@ -21,6 +21,13 @@
   --input: oklch(0.3 0.006 270);
   --ring: oklch(0.7 0.2 45);
   --radius: 0.875rem;
+
+  /* Safe areas (iOS notch, home indicator, landscape) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --app-height: 100dvh;
 }
 
 @theme inline {
@@ -54,15 +61,197 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
-    @apply min-h-dvh w-full;
+    width: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    background-color: var(--background);
   }
+
+  html,
   body {
-    @apply min-h-dvh w-full bg-background text-foreground font-sans antialiased;
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+  }
+
+  body.app-native {
+    width: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    margin: 0;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Texto seleccionable solo donde importa */
+  body.app-native input,
+  body.app-native textarea,
+  body.app-native select,
+  body.app-native option,
+  body.app-native [contenteditable='true'],
+  body.app-native .native-selectable {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  body.app-native img,
+  body.app-native a {
+    -webkit-user-drag: none;
+  }
+
+  body.app-native button,
+  body.app-native [role='button'] {
+    touch-action: manipulation;
   }
 }
 
-.mapboxgl-ctrl-logo,
-.mapboxgl-ctrl-attrib {
-  display: none !important;
+/* Shell principal — ancho móvil centrado (SE → Pro Max) */
+.app-shell {
+  width: 100%;
+  max-width: 28rem; /* ~448px; max-w-md */
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Altura de pantalla dinámica (evita salto barra Safari) */
+.h-app {
+  height: 100dvh;
+  height: -webkit-fill-available;
+}
+
+.min-h-app {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+/* Padding reservando home indicator / notch */
+.pt-safe {
+  padding-top: max(0.75rem, var(--safe-top));
+}
+
+.pb-safe {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
+}
+
+.pb-safe-page {
+  padding-bottom: max(2.5rem, calc(0.75rem + var(--safe-bottom)));
+}
+
+.pb-scroll-above-dock {
+  padding-bottom: max(9rem, calc(5.5rem + var(--safe-bottom)));
+}
+
+.px-safe {
+  padding-left: max(0.75rem, var(--safe-left));
+  padding-right: max(0.75rem, var(--safe-right));
+}
+
+/* Botones / FAB sobre mapas */
+.map-fab-bottom-safe {
+  bottom: max(0.75rem, var(--safe-bottom));
+}
+
+.map-fab-right-safe {
+  right: max(0.75rem, var(--safe-right));
+}
+
+.map-controls-right-safe {
+  right: max(0.75rem, var(--safe-right));
+}
+
+/* Barras fijas inferiores (CTA, tabs) */
+.app-dock-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding-bottom: max(1.25rem, var(--safe-bottom));
+  padding-left: max(1rem, var(--safe-left));
+  padding-right: max(1rem, var(--safe-right));
+}
+
+.app-dock-bottom-inner {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 28rem;
+}
+
+/* Mapas — altura flexible en pantallas pequeñas y grandes */
+.map-pane-route-detail {
+  height: clamp(280px, 42dvh, 420px);
+  min-height: 280px;
+  flex-shrink: 0;
+}
+
+.map-pane-gloves {
+  height: clamp(200px, 50dvh, 480px);
+  min-height: 200px;
+  flex-shrink: 0;
+}
+
+.motorutas-leaflet-map .leaflet-container {
+  background: #0a0a0c;
+  font-family: inherit;
+}
+
+.motorutas-leaflet-map .leaflet-control-attribution {
+  font-size: 9px;
+  margin-bottom: var(--safe-bottom);
+  background: rgba(0, 0, 0, 0.65) !important;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.motorutas-waypoint-icon,
+.gloves-user-icon,
+.gloves-leader-icon,
+.gloves-radar-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.gloves-user-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.gloves-user-arrow-shape {
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 22px solid #38bdf8;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.85));
+}
+
+.gloves-leader-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #a3e635;
+  border: 3px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+}
+
+.gloves-radar-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
 }
