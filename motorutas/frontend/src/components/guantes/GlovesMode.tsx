@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Coffee, Fuel, Radio, X } from 'lucide-react';
 import { useStore } from '@nanostores/react';
 import { api, isLoggedIn, wsUrl } from '@/lib/api';
 import { $user } from '@/stores/auth';
+import {
+  checkNavigationHazards,
+  loadNavigationHazards,
+  type HazardPoint,
+} from '@/lib/navigation-hazards';
+import { cancelSpeech, speakStr } from '@/lib/speech';
 import GlovesMiniMap, { type MapPoint, type UserMapLocation } from '@/components/guantes/GlovesMiniMap';
 
 type TrackingPos = { user_id: string; username: string; lat: number; lng: number };
@@ -31,6 +37,8 @@ export default function GlovesMode({
   const [positions, setPositions] = useState<TrackingPos[]>([]);
   const [sent, setSent] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const hazardsRef = useRef<HazardPoint[]>([]);
+  const alertedHazardsRef = useRef<Set<string>>(new Set());
 
   const routePoints: MapPoint[] = useMemo(
     () =>
@@ -64,7 +72,16 @@ export default function GlovesMode({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      alertedHazardsRef.current.clear();
+      cancelSpeech();
+      return;
+    }
+
+    speakStr('Iniciando ruta. Conduce con precaución.');
+    void loadNavigationHazards().then((hazards) => {
+      hazardsRef.current = hazards;
+    });
 
     api<TrackingPos[]>(`/rutas/${rutaId}/tracking`)
       .then((list) => setPositions(list))
@@ -76,6 +93,7 @@ export default function GlovesMode({
 
     const pushLocation = (lat: number, lng: number, heading: number | null) => {
       setUserPos({ lat, lng, heading });
+      checkNavigationHazards(lat, lng, hazardsRef.current, alertedHazardsRef.current);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ lat, lng }));
       }
@@ -193,7 +211,7 @@ export default function GlovesMode({
       aria-label="Modo guantes en ruta"
     >
       {/* Mapa — mitad superior */}
-      <div className="relative map-pane-gloves w-full border-b-4 border-white">
+      <div className="relative map-pane-gloves w-full min-h-0 border-b-4 border-white">
         <GlovesMiniMap route={routePoints} user={userPos} leader={leaderPos} />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-between p-3 pt-safe">
@@ -205,7 +223,7 @@ export default function GlovesMode({
             type="button"
             onClick={onClose}
             aria-label="Salir modo guantes"
-            className="pointer-events-auto flex size-14 items-center justify-center rounded-2xl border-4 border-white bg-black active:scale-95"
+            className="btn-press pointer-events-auto flex size-14 items-center justify-center rounded-2xl border-4 border-white bg-black"
           >
             <X className="size-8" strokeWidth={3} />
           </button>
@@ -234,7 +252,7 @@ export default function GlovesMode({
           type="button"
           disabled={sending}
           onClick={() => notifyGroup('sos', 'SOS / Parada de Emergencia')}
-          className="flex min-h-[88px] w-full flex-col items-center justify-center gap-1 rounded-2xl border-4 border-white bg-red-600 px-4 py-4 text-center shadow-[0_0_24px_rgba(220,38,38,0.6)] active:scale-[0.98] disabled:opacity-60"
+          className="btn-press flex min-h-[88px] w-full flex-col items-center justify-center gap-1 rounded-2xl border-4 border-white bg-red-600 px-4 py-4 text-center shadow-[0_0_24px_rgba(220,38,38,0.6)] disabled:opacity-60"
         >
           <AlertTriangle className="size-10 shrink-0" strokeWidth={2.5} />
           <span className="text-lg font-black leading-tight sm:text-xl">
@@ -247,7 +265,7 @@ export default function GlovesMode({
             type="button"
             disabled={sending}
             onClick={() => notifyGroup('gasolinera', 'Necesito Gasolina')}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-[#a3e635] bg-[#1a2e0a] px-2 py-4 active:scale-[0.98] disabled:opacity-60"
+            className="btn-press flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-[#a3e635] bg-[#1a2e0a] px-2 py-4 disabled:opacity-60"
           >
             <Fuel className="size-12 text-[#a3e635]" strokeWidth={2.5} />
             <span className="text-center text-base font-black leading-tight text-[#a3e635] sm:text-lg">
@@ -261,7 +279,7 @@ export default function GlovesMode({
             type="button"
             disabled={sending}
             onClick={() => notifyGroup('parada', 'Parada para Café / Descanso')}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-white bg-[#1a1a1f] px-2 py-4 active:scale-[0.98] disabled:opacity-60"
+            className="btn-press flex flex-col items-center justify-center gap-2 rounded-2xl border-4 border-white bg-[#1a1a1f] px-2 py-4 disabled:opacity-60"
           >
             <Coffee className="size-12 text-white" strokeWidth={2.5} />
             <span className="text-center text-base font-black leading-tight sm:text-lg">

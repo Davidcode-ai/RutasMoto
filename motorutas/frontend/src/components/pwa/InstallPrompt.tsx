@@ -101,7 +101,7 @@ export default function InstallPrompt() {
               type="button"
               onClick={handleDismiss}
               aria-label="Cerrar"
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background/80 text-muted-foreground ring-1 ring-border"
+              className="btn-press flex size-9 shrink-0 items-center justify-center rounded-full bg-background/80 text-muted-foreground ring-1 ring-border"
             >
               <X className="size-4" />
             </button>
@@ -110,7 +110,7 @@ export default function InstallPrompt() {
           <button
             type="button"
             onClick={handleInstall}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 active:scale-[0.98]"
+            className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25"
           >
             <Download className="size-5" />
             Añadir a Inicio

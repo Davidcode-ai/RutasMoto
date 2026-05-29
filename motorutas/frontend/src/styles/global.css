@@ -111,6 +111,18 @@
   }
 }
 
+@layer utilities {
+  /* Feedback táctil coherente en botones y enlaces tipo CTA */
+  .btn-press {
+    @apply transition-transform duration-100 ease-out active:scale-[0.98] disabled:active:scale-100;
+  }
+
+  .no-scrollbar-x {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+}
+
 /* Shell principal — ancho móvil centrado (SE → Pro Max) */
 .app-shell {
   width: 100%;
@@ -121,6 +133,7 @@
   margin-right: auto;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
+  overflow-x: hidden;
 }
 
 /* Altura de pantalla dinámica (evita salto barra Safari) */
@@ -216,9 +229,14 @@
 .motorutas-waypoint-icon,
 .gloves-user-icon,
 .gloves-leader-icon,
-.gloves-radar-icon {
+.gloves-radar-icon,
+.gloves-wp-icon {
   background: transparent !important;
   border: none !important;
+}
+
+.motorutas-leaflet-map .leaflet-pane {
+  z-index: 0;
 }
 
 .gloves-user-arrow {
@@ -254,4 +272,19 @@
   background: #ef4444;
   border: 2px solid #fff;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+}
+
+.gloves-incident-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.gloves-incident-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #f59e0b;
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.9);
+  transform: rotate(45deg);
 }

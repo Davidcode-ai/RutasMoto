@@ -4,12 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.models.inscripcion import Inscripcion, InscripcionStatus
 from app.models.moto import Moto
+from app.models.ruta import Ruta
 from app.models.user import PaceBase, User
 from app.schemas.auth import UserResponse
+from app.schemas.inscripcion import ParticipatingRutaItem
 from app.schemas.moto import MotoCreate, MotoResponse, MotoUpdate
 from app.services.moto_image import fetch_moto_image
 
@@ -44,6 +48,42 @@ async def update_profile(
         user.push_subscription = body.push_subscription
     await db.flush()
     return user
+
+
+@router.get("/me/inscripciones", response_model=list[ParticipatingRutaItem])
+async def list_my_inscripciones(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rutas en las que el usuario participa (inscripción aceptada o pendiente en ruta privada)."""
+    result = await db.execute(
+        select(Inscripcion)
+        .where(
+            Inscripcion.user_id == user.id,
+            Inscripcion.status.in_(
+                (InscripcionStatus.aceptada, InscripcionStatus.pendiente),
+            ),
+        )
+        .options(selectinload(Inscripcion.ruta).selectinload(Ruta.organizer))
+        .join(Ruta, Inscripcion.ruta_id == Ruta.id)
+        .order_by(Ruta.start_time.desc().nullslast(), Inscripcion.joined_at.desc())
+    )
+    rows = result.scalars().unique().all()
+    return [
+        ParticipatingRutaItem(
+            inscripcion_id=ins.id,
+            ruta_id=ins.ruta_id,
+            title=ins.ruta.title,
+            status=ins.ruta.status,
+            visibility=ins.ruta.visibility,
+            start_time=ins.ruta.start_time,
+            organizer=UserResponse.model_validate(ins.ruta.organizer),
+            inscripcion_status=ins.status.value,
+            origin=ins.origin,
+            is_organizer=ins.ruta.organizer_id == user.id,
+        )
+        for ins in rows
+    ]
 
 
 @router.get("/me/motos", response_model=list[MotoResponse])

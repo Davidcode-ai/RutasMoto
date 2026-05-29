@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "inc-1",
+        "name": "Obras A-376 — carril cortado (demo)",
+        "type": "road_closure"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-5.65, 36.62]
+      }
+    }
+  ]
+}

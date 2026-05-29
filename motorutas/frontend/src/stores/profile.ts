@@ -18,8 +18,22 @@ export type ProfileStats = {
   kilometers: string;
 };
 
+export type ParticipatingRuta = {
+  inscripcion_id: string;
+  ruta_id: string;
+  title: string;
+  status: string;
+  visibility: string;
+  start_time: string | null;
+  organizer: { id: string; username: string };
+  inscripcion_status: string;
+  origin: string | null;
+  is_organizer: boolean;
+};
+
 export const $motos = atom<Moto[]>([]);
 export const $profileStats = atom<ProfileStats>({ completed: 0, created: 0, kilometers: '0' });
+export const $participatingRoutes = atom<ParticipatingRuta[]>([]);
 export const $profileLoading = atom(false);
 
 /** Moto de ejemplo cuando el garaje está vacío (UI demo) */
@@ -40,8 +54,16 @@ export async function loadProfile() {
   const user = $user.get();
   if (!user) {
     $motos.set([]);
+    $participatingRoutes.set([]);
     $profileLoading.set(false);
     return;
+  }
+
+  try {
+    const participating = await api<ParticipatingRuta[]>('/users/me/inscripciones');
+    $participatingRoutes.set(participating);
+  } catch {
+    $participatingRoutes.set([]);
   }
 
   try {

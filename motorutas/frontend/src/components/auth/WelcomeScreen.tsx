@@ -1,50 +1,18 @@
-import { useEffect, useState } from 'react';
-import { useStore } from '@nanostores/react';
 import { Route } from 'lucide-react';
-import { $authLoading, $user, loadUser, setGuestMode, isGuestMode } from '@/stores/auth';
+import { setGuestMode } from '@/stores/auth';
 
-export default function WelcomeScreen() {
-  const user = useStore($user);
-  const authLoading = useStore($authLoading);
-  const [guestReady, setGuestReady] = useState(false);
-  const [isGuest, setIsGuest] = useState(false);
+type Props = {
+  onGuest?: () => void;
+};
 
-  useEffect(() => {
-    setIsGuest(isGuestMode());
-    setGuestReady(true);
-    loadUser();
-  }, []);
-
-  const isLoading = authLoading || !guestReady;
-
-  if (!isLoading && (user || isGuest)) {
-    return null;
-  }
-
+export default function WelcomeScreen({ onGuest }: Props) {
   function handleGuest() {
     setGuestMode();
-    setIsGuest(true);
-  }
-
-  if (isLoading) {
-    return (
-      <div
-        className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col items-center justify-center bg-background"
-        aria-busy="true"
-        aria-label="Comprobando sesión"
-      >
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex size-20 items-center justify-center rounded-3xl bg-primary/15 ring-2 ring-primary/40 animate-pulse">
-            <Route className="size-10 text-primary" strokeWidth={2.5} />
-          </div>
-          <p className="text-lg font-bold tracking-tight text-primary">MotoRutas</p>
-        </div>
-      </div>
-    );
+    onGuest?.();
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col bg-background">
+    <div className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col overflow-x-hidden bg-background">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(234,88,12,0.35),transparent)]"
         aria-hidden
@@ -68,20 +36,20 @@ export default function WelcomeScreen() {
         <div className="w-full max-w-sm space-y-3">
           <a
             href="/auth/login"
-            className="flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 active:scale-[0.98]"
+            className="btn-press flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25"
           >
             Iniciar sesión
           </a>
           <a
             href="/auth/registro"
-            className="flex w-full items-center justify-center rounded-2xl border-2 border-border bg-card px-6 py-4 text-base font-bold text-foreground ring-1 ring-border active:scale-[0.98]"
+            className="btn-press flex w-full items-center justify-center rounded-2xl border-2 border-border bg-card px-6 py-4 text-base font-bold text-foreground ring-1 ring-border"
           >
             Crear cuenta
           </a>
           <button
             type="button"
             onClick={handleGuest}
-            className="mt-2 w-full py-3 text-center text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
+            className="btn-press mt-2 w-full py-3 text-center text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
           >
             Explorar como invitado
           </button>

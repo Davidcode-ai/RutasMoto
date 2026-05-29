@@ -135,7 +135,7 @@ export function JoinRouteSheet({
         <button type="button" aria-label="Cerrar" onClick={onClose} className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
         <div className="relative z-10 w-full max-w-md rounded-t-3xl border-t border-border bg-card p-6 text-center">
           <p className="mb-4 text-muted-foreground">Inicia sesión para unirte a la ruta</p>
-          <a href="/auth/login" className="block rounded-2xl bg-primary py-4 font-bold text-primary-foreground">
+          <a href="/auth/login" className="btn-press block rounded-2xl bg-primary py-4 font-bold text-primary-foreground">
             Iniciar sesión
           </a>
         </div>
@@ -357,7 +357,7 @@ export function JoinRouteSheet({
                         key={opt.id}
                         type="button"
                         onClick={() => setPace(opt.id)}
-                        className={`flex flex-col items-center gap-1.5 rounded-2xl px-2 py-4 text-center ring-1 transition-colors active:scale-[0.98] ${
+                        className={`btn-press flex flex-col items-center gap-1.5 rounded-2xl px-2 py-4 text-center ring-1 transition-colors ${
                           active ? opt.activeBg : 'bg-secondary ring-border'
                         }`}
                       >
@@ -384,7 +384,7 @@ export function JoinRouteSheet({
                 type="button"
                 onClick={handleConfirm}
                 disabled={!canConfirm || loading}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-[0.98] disabled:opacity-40"
+                className="btn-press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-40"
               >
                 <Check className="size-5" />
                 {loading ? 'Confirmando…' : 'Confirmar Asistencia'}

@@ -11,6 +11,7 @@ from app.models.mensaje import Mensaje
 from app.models.user import User
 from app.schemas.auth import UserResponse
 from app.schemas.mensaje import MensajeCreate, MensajeResponse
+from app.services.ruta_access import can_access_ruta
 from app.websockets.chat import broadcast_chat_message
 
 router = APIRouter(prefix="/rutas/{ruta_id}/mensajes", tags=["mensajes"])
@@ -21,8 +22,11 @@ async def list_mensajes(
     ruta_id: UUID,
     limit: int = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
-    _user: User | None = Depends(get_optional_user),
+    user: User | None = Depends(get_optional_user),
 ):
+    if not await can_access_ruta(db, user, ruta_id):
+        raise HTTPException(status_code=403, detail="Sin acceso al chat de esta ruta")
+
     result = await db.execute(
         select(Mensaje)
         .where(Mensaje.ruta_id == ruta_id)
@@ -51,6 +55,9 @@ async def create_mensaje(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if not await can_access_ruta(db, user, ruta_id):
+        raise HTTPException(status_code=403, detail="Sin acceso al chat de esta ruta")
+
     mensaje = Mensaje(ruta_id=ruta_id, user_id=user.id, content=body.content, type=body.type)
     db.add(mensaje)
     await db.commit()

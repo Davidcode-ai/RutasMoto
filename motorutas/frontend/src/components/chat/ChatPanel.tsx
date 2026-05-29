@@ -20,6 +20,8 @@ type Props = {
   activeCount?: number;
   /** Dentro del detalle de ruta (sin márgenes negativos) */
   embedded?: boolean;
+  /** Si false, cierra el WebSocket (pestaña chat oculta) sin desmontar el componente */
+  wsActive?: boolean;
 };
 
 type WsStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
@@ -60,9 +62,10 @@ const DEMO_SYSTEM: Message = {
   user: { id: 'demo', username: 'ramon' },
 };
 
-function parseWsMessage(data: unknown): Message | null {
+function parseWsMessage(data: unknown, expectedRutaId: string): Message | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Record<string, unknown>;
+  if (d.ruta_id != null && String(d.ruta_id) !== expectedRutaId) return null;
   if (typeof d.id !== 'string' || typeof d.content !== 'string') return null;
   return {
     id: d.id,
@@ -102,6 +105,7 @@ export default function ChatPanel({
   participantCount = 0,
   activeCount,
   embedded = false,
+  wsActive = true,
 }: Props) {
   const user = useStore($user);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -145,11 +149,18 @@ export default function ChatPanel({
   );
 
   useEffect(() => {
+    setMessages([]);
     loadMessages();
   }, [loadMessages]);
 
   useEffect(() => {
-    if (!isLoggedIn()) {
+    if (!isLoggedIn() || !wsActive) {
+      intentionalCloseRef.current = true;
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
       setWsStatus('idle');
       return;
     }
@@ -216,7 +227,7 @@ export default function ChatPanel({
 
       ws.onmessage = (ev) => {
         try {
-          const incoming = parseWsMessage(JSON.parse(ev.data));
+          const incoming = parseWsMessage(JSON.parse(ev.data), rutaId);
           if (incoming) appendMessage(incoming);
         } catch {
           /* ignore malformed payloads */
@@ -245,7 +256,7 @@ export default function ChatPanel({
       }
       setWsStatus('idle');
     };
-  }, [rutaId, appendMessage, loadMessages]);
+  }, [rutaId, wsActive, appendMessage, loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -315,7 +326,7 @@ export default function ChatPanel({
 
   return (
     <div
-      className={`flex flex-1 flex-col ${embedded ? 'min-h-0' : 'min-h-[min(520px,60dvh)]'} ${embedded ? '' : '-mx-4'}`}
+      className={`no-scrollbar-x flex min-w-0 flex-1 flex-col ${embedded ? 'min-h-0' : 'min-h-[min(520px,60dvh)]'}`}
     >
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
@@ -424,7 +435,7 @@ export default function ChatPanel({
             disabled={sharingLocation || !isLoggedIn()}
             aria-label="Compartir mi ubicación actual"
             title="Compartir ubicación"
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-primary ring-1 ring-border transition active:scale-95 disabled:opacity-50"
+            className="btn-press flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-primary ring-1 ring-border disabled:opacity-50"
           >
             <MapPin className={`size-5 ${sharingLocation ? 'animate-pulse' : ''}`} />
           </button>
@@ -448,7 +459,7 @@ export default function ChatPanel({
               onClick={sendText}
               disabled={!text.trim() || !isLoggedIn()}
               aria-label="Enviar mensaje"
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40 active:scale-95"
+              className="btn-press flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
             >
               <Send className="size-4" />
             </button>

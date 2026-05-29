@@ -29,7 +29,7 @@ export default function AuthForm({ mode }: Props) {
   }
 
   return (
-    <main className="flex min-h-app w-full flex-col justify-center px-4 pb-safe">
+    <main className="no-scrollbar-x flex min-h-app w-full min-w-0 flex-col justify-center px-4 pb-safe">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-primary">MotoRutas</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -73,7 +73,7 @@ export default function AuthForm({ mode }: Props) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground disabled:opacity-50"
+          className="btn-press w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground disabled:opacity-50"
         >
           {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Registrarse'}
         </button>

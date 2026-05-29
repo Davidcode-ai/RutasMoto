@@ -12,6 +12,9 @@ import {
   ChevronRight,
   X,
   LogOut,
+  Globe,
+  Lock,
+  Calendar,
 } from 'lucide-react';
 import {
   $user,
@@ -22,15 +25,81 @@ import {
 } from '@/stores/auth';
 import {
   $motos,
+  $participatingRoutes,
   $profileStats,
   $profileLoading,
   DEMO_GARAGE,
   loadProfile,
   addMoto,
   updateMoto,
+  type ParticipatingRuta,
 } from '@/stores/profile';
 import { $canInstall, $isInstalled, hydrateInstallState, promptInstall } from '@/stores/pwa-install';
 import { apiPaceFromPace, paceFromApi, paceMeta, paceStyles, type Pace } from '@/lib/route-data';
+
+function formatRouteDate(iso: string | null) {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return null;
+  }
+}
+
+function ParticipatingRouteRow({ r }: { r: ParticipatingRuta }) {
+  const when = formatRouteDate(r.start_time);
+  return (
+    <a
+      href={`/rutas/detalle?id=${r.ruta_id}`}
+      className="btn-press flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/30">
+        <RouteIcon className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${
+              r.visibility === 'publica'
+                ? 'bg-accent/15 text-accent ring-accent/30'
+                : 'bg-secondary text-muted-foreground ring-border'
+            }`}
+          >
+            {r.visibility === 'publica' ? <Globe className="size-2.5" /> : <Lock className="size-2.5" />}
+            {r.visibility === 'publica' ? 'Pública' : 'Privada'}
+          </span>
+          {r.is_organizer && (
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-primary/30">
+              Organizador
+            </span>
+          )}
+          {r.inscripcion_status === 'pendiente' && (
+            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 ring-1 ring-amber-500/30">
+              Pendiente
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 truncate text-sm font-bold">{r.title}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {r.is_organizer ? 'Tu salida' : `por ${r.organizer.username}`}
+          {r.origin ? ` · desde ${r.origin}` : ''}
+        </p>
+        {when && (
+          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Calendar className="size-3" />
+            {when}
+          </p>
+        )}
+      </div>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </a>
+  );
+}
 
 function SettingsSheet({
   open,
@@ -64,7 +133,7 @@ function SettingsSheet({
               <button
                 type="button"
                 onClick={handleInstallApp}
-                className="flex w-full items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 font-semibold text-primary"
+                className="btn-press flex w-full items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 font-semibold text-primary"
               >
                 📱 Instalar App
               </button>
@@ -83,7 +152,7 @@ function SettingsSheet({
             logout();
             window.location.href = '/auth/login';
           }}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 py-3 font-semibold text-destructive"
+          className="btn-press mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 py-3 font-semibold text-destructive"
         >
           <LogOut className="size-4" />
           Cerrar sesión
@@ -170,7 +239,7 @@ function EditProfileSheet({
           type="button"
           onClick={save}
           disabled={saving || !username.trim()}
-          className="mt-6 w-full rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-50"
+          className="btn-press mt-6 w-full rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </button>
@@ -246,7 +315,7 @@ function EditMotoSheet({
           type="button"
           onClick={save}
           disabled={saving}
-          className="mt-6 w-full rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-50"
+          className="btn-press mt-6 w-full rounded-2xl bg-primary py-4 font-bold text-primary-foreground disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar moto'}
         </button>
@@ -260,6 +329,7 @@ export default function ProfileApp() {
   const authLoading = useStore($authLoading);
   const motos = useStore($motos);
   const stats = useStore($profileStats);
+  const participatingRoutes = useStore($participatingRoutes);
   const profileLoading = useStore($profileLoading);
 
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -316,7 +386,7 @@ export default function ProfileApp() {
   const handle = `@${user.username}`;
 
   return (
-    <main className="flex min-h-app w-full flex-col bg-background pb-safe-page">
+    <main className="no-scrollbar-x flex min-h-app w-full min-w-0 flex-col bg-background pb-safe-page">
       <header className="flex items-center justify-between px-4 pt-4">
         <a
           href="/"
@@ -388,7 +458,7 @@ export default function ProfileApp() {
               type="button"
               aria-label="Editar moto"
               onClick={() => setEditMotoOpen(true)}
-              className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/80 ring-1 ring-border backdrop-blur active:scale-95"
+              className="btn-press absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-background/80 ring-1 ring-border backdrop-blur"
             >
               <Pencil className="size-4" />
             </button>
@@ -466,11 +536,33 @@ export default function ProfileApp() {
         </p>
       </section>
 
+      <section className="px-4 pt-5">
+        <div className="mb-2 flex items-center gap-2">
+          <RouteIcon className="size-4 text-primary" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Rutas en las que participo
+          </h3>
+        </div>
+        {participatingRoutes.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-6 text-center text-sm text-muted-foreground">
+            Aún no te has inscrito en ninguna salida. Explora rutas públicas o pide acceso a un grupo privado.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {participatingRoutes.map((r) => (
+              <li key={r.inscripcion_id}>
+                <ParticipatingRouteRow r={r} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="mt-auto flex flex-col gap-3 px-4 pt-8">
         <button
           type="button"
           onClick={() => setEditProfileOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 active:scale-[0.98]"
+          className="btn-press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30"
         >
           <Pencil className="size-5" />
           Editar Perfil
@@ -478,7 +570,7 @@ export default function ProfileApp() {
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="flex w-full items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-4 text-base font-semibold active:scale-[0.98]"
+          className="btn-press flex w-full items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-4 text-base font-semibold"
         >
           <span className="flex items-center gap-2">
             <Settings className="size-5 text-muted-foreground" />

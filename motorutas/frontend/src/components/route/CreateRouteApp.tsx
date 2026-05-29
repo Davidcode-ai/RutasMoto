@@ -167,12 +167,12 @@ export default function CreateRouteApp() {
   }
 
   return (
-    <main className="flex min-h-app w-full flex-col bg-background">
+    <main className="no-scrollbar-x flex min-h-app w-full min-w-0 flex-col bg-background">
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/90 px-4 pb-3 pt-safe backdrop-blur">
         <a
           href="/"
           aria-label="Volver"
-          className="flex size-10 items-center justify-center rounded-full bg-card text-foreground ring-1 ring-border active:scale-95"
+          className="btn-press flex size-10 items-center justify-center rounded-full bg-card text-foreground ring-1 ring-border"
         >
           <ChevronLeft className="size-6" />
         </a>
@@ -284,7 +284,7 @@ export default function CreateRouteApp() {
           <button
             type="button"
             onClick={addWaypoint}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm font-semibold text-muted-foreground transition active:scale-[0.98] hover:border-primary/40 hover:text-primary"
+            className="btn-press mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary"
           >
             <Plus className="size-4" />
             Añadir waypoint
@@ -304,7 +304,7 @@ export default function CreateRouteApp() {
             type="button"
             onClick={handleAiReturn}
             disabled={aiLoading || aiReturnAdded}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/20 transition active:scale-[0.98] disabled:opacity-70"
+            className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/20 disabled:opacity-70"
           >
             <Sparkles className={`size-5 ${aiLoading ? 'animate-pulse' : ''}`} />
             {aiLoading
@@ -377,7 +377,7 @@ export default function CreateRouteApp() {
             type="button"
             onClick={handleCreate}
             disabled={!canCreate || saving}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-[0.98] disabled:opacity-40"
+            className="btn-press flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/30 disabled:opacity-40"
           >
             <RouteIcon className="size-5" />
             {saving ? 'Creando ruta…' : 'Crear Ruta'}

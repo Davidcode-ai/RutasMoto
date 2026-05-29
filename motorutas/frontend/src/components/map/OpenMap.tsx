@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Plus, Minus, Navigation, Layers, X } from 'lucide-react';
+import { useLeafletInvalidateSize } from '@/hooks/use-leaflet-invalidate-size';
+import { drawOsrmRouteOnMap, drawStraightRouteOnMap, removeRouteLayers } from '@/lib/leaflet-route-layer';
+import { fetchOsrmRouteGeometry } from '@/lib/osrm-route';
 
 type Waypoint = { name: string; lat?: number | null; lng?: number | null; order: number };
 type Rider = { user_id: string; username: string; lat: number; lng: number };
@@ -32,18 +35,24 @@ export default function OpenMap({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const routeLineRef = useRef<L.Polyline | null>(null);
+  const routeHaloRef = useRef<L.GeoJSON | null>(null);
+  const routeLineRef = useRef<L.GeoJSON | null>(null);
   const waypointLayerRef = useRef<L.LayerGroup | null>(null);
   const riderLayerRef = useRef<L.LayerGroup | null>(null);
+  const routeAbortRef = useRef<AbortController | null>(null);
   const [showCluster, setShowCluster] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+
+  useLeafletInvalidateSize(mapRef, containerRef, mapReady);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const coords = waypoints.filter((w) => w.lat != null && w.lng != null);
+    const sorted = [...waypoints]
+      .filter((w) => w.lat != null && w.lng != null)
+      .sort((a, b) => a.order - b.order);
     const center: L.LatLngExpression =
-      coords.length > 0 ? [coords[0].lat!, coords[0].lng!] : DEFAULT_CENTER;
+      sorted.length > 0 ? [sorted[0].lat!, sorted[0].lng!] : DEFAULT_CENTER;
 
     const map = L.map(containerRef.current, {
       center,
@@ -63,8 +72,10 @@ export default function OpenMap({
     setMapReady(true);
 
     return () => {
+      routeAbortRef.current?.abort();
       map.remove();
       mapRef.current = null;
+      routeHaloRef.current = null;
       routeLineRef.current = null;
       waypointLayerRef.current = null;
       riderLayerRef.current = null;
@@ -76,28 +87,48 @@ export default function OpenMap({
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    const coords = waypoints.filter((w) => w.lat != null && w.lng != null);
-    const latlngs: L.LatLngExpression[] = coords.map((w) => [w.lat!, w.lng!]);
-
-    if (routeLineRef.current) {
-      routeLineRef.current.remove();
-      routeLineRef.current = null;
-    }
-
-    if (latlngs.length >= 2) {
-      routeLineRef.current = L.polyline(latlngs, {
-        color: '#ea580c',
-        weight: 4,
-        opacity: 0.9,
-      }).addTo(map);
-      map.fitBounds(routeLineRef.current.getBounds(), { padding: [40, 40], maxZoom: 12 });
-    }
+    const sorted = [...waypoints]
+      .filter((w) => w.lat != null && w.lng != null)
+      .sort((a, b) => a.order - b.order);
 
     const wpLayer = waypointLayerRef.current;
     wpLayer?.clearLayers();
-    coords.forEach((wp, i) => {
-      L.marker([wp.lat!, wp.lng!], { icon: waypointLabelIcon(i, wp.name) }).addTo(wpLayer!);
+    sorted.forEach((wp, i) => {
+      L.marker([wp.lat!, wp.lng!], {
+        icon: waypointLabelIcon(i, wp.name),
+        zIndexOffset: 1000,
+      }).addTo(wpLayer!);
     });
+
+    routeAbortRef.current?.abort();
+    const ac = new AbortController();
+    routeAbortRef.current = ac;
+
+    removeRouteLayers(routeHaloRef, routeLineRef);
+
+    if (sorted.length < 2) return;
+
+    const points = sorted.map((w) => ({ lat: w.lat!, lng: w.lng! }));
+    const latlngs: L.LatLngExpression[] = points.map((p) => [p.lat, p.lng]);
+
+    void (async () => {
+      const geometry = await fetchOsrmRouteGeometry(points, ac.signal);
+      if (ac.signal.aborted || mapRef.current !== map) return;
+
+      let bounds: L.LatLngBounds | null = null;
+      if (geometry) {
+        bounds = drawOsrmRouteOnMap(map, geometry, routeHaloRef, routeLineRef);
+      } else {
+        bounds = drawStraightRouteOnMap(map, latlngs, routeHaloRef, routeLineRef);
+      }
+
+      if (bounds?.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+        window.setTimeout(() => map.invalidateSize({ animate: false }), 100);
+      }
+    })();
+
+    return () => ac.abort();
   }, [waypoints, mapReady]);
 
   useEffect(() => {
@@ -108,15 +139,15 @@ export default function OpenMap({
     riderLayer?.clearLayers();
 
     riders.forEach((r) => {
-      L.marker([r.lat, r.lng])
+      L.marker([r.lat, r.lng], { zIndexOffset: 800 })
         .bindPopup(`<strong>${r.username}</strong>`)
         .addTo(riderLayer!);
     });
   }, [riders, mapReady]);
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={containerRef} className="motorutas-leaflet-map h-full w-full" />
+    <div className="relative h-full w-full min-h-0">
+      <div ref={containerRef} className="motorutas-leaflet-map absolute inset-0 h-full w-full" />
 
       {weatherAlerts.length > 0 && (
         <div className="absolute left-3 top-20 z-[1000] max-w-[200px] rounded-xl bg-destructive/90 px-3 py-2 text-xs font-semibold text-destructive-foreground">
@@ -129,7 +160,7 @@ export default function OpenMap({
           <button
             type="button"
             onClick={() => mapRef.current?.zoomIn()}
-            className="flex size-10 items-center justify-center"
+            className="btn-press flex size-10 items-center justify-center"
             aria-label="Acercar"
           >
             <Plus className="size-5" />
@@ -138,7 +169,7 @@ export default function OpenMap({
           <button
             type="button"
             onClick={() => mapRef.current?.zoomOut()}
-            className="flex size-10 items-center justify-center"
+            className="btn-press flex size-10 items-center justify-center"
             aria-label="Alejar"
           >
             <Minus className="size-5" />
@@ -156,14 +187,14 @@ export default function OpenMap({
               );
             });
           }}
-          className="flex size-10 items-center justify-center rounded-full bg-card/90 text-primary ring-1 ring-border backdrop-blur"
+          className="btn-press flex size-10 items-center justify-center rounded-full bg-card/90 text-primary ring-1 ring-border backdrop-blur"
           aria-label="Mi ubicación"
         >
           <Navigation className="size-5" />
         </button>
         <button
           type="button"
-          className="flex size-10 items-center justify-center rounded-full bg-card/90 ring-1 ring-border backdrop-blur"
+          className="btn-press flex size-10 items-center justify-center rounded-full bg-card/90 ring-1 ring-border backdrop-blur"
           aria-label="Capas"
         >
           <Layers className="size-5" />
@@ -175,7 +206,7 @@ export default function OpenMap({
           <button
             type="button"
             onClick={() => setShowCluster((v) => !v)}
-            className="flex size-12 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground shadow-lg ring-4 ring-primary/25"
+            className="btn-press flex size-12 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground shadow-lg ring-4 ring-primary/25"
           >
             {clusterRiders.length}
           </button>

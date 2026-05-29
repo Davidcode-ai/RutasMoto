@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Navigation } from 'lucide-react';
-import { haversineMeters } from '@/lib/geo';
-import { toast } from '@/hooks/use-toast';
+import { useLeafletInvalidateSize } from '@/hooks/use-leaflet-invalidate-size';
+import { drawOsrmRouteOnMap, drawStraightRouteOnMap, removeRouteLayers } from '@/lib/leaflet-route-layer';
+import { fetchOsrmRouteGeometry } from '@/lib/osrm-route';
 
 export type MapPoint = { lat: number; lng: number; label?: string };
 
@@ -22,18 +23,28 @@ const FALLBACK_ROUTE: MapPoint[] = [
   { lat: 36.758, lng: -5.366, label: 'Fin' },
 ];
 const DEFAULT_CENTER: L.LatLngExpression = [36.5, -5.6];
-const NAV_ZOOM = 15;
-const RADAR_ALERT_METERS = 500;
-const RADAR_CLEAR_METERS = 650;
+const NAV_ZOOM = 16;
 
-type RadarFeature = GeoJSON.Feature<GeoJSON.Point, { id?: string; name?: string; maxspeed?: string }>;
+function resolveRoutePoints(route: MapPoint[]): MapPoint[] {
+  const pts = route.filter((p) => p.lat != null && p.lng != null);
+  return pts.length >= 2 ? pts : FALLBACK_ROUTE;
+}
 
-function routeLatLngs(route: MapPoint[]): L.LatLngExpression[] {
-  const pts =
-    route.filter((p) => p.lat != null && p.lng != null).length >= 2
-      ? route.filter((p) => p.lat != null && p.lng != null)
-      : FALLBACK_ROUTE;
-  return pts.map((p) => [p.lat, p.lng]);
+function waypointPinIcon(label: string, variant: 'start' | 'stop' | 'end'): L.DivIcon {
+  const colors = {
+    start: '#22c55e',
+    stop: '#eab308',
+    end: '#ef4444',
+  };
+  const bg = colors[variant];
+  return L.divIcon({
+    className: 'gloves-wp-icon',
+    html: `<div style="display:flex;flex-direction:column;align-items:center">
+      <div style="width:12px;height:12px;border-radius:50%;background:${bg};border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6)"></div>
+      <span style="margin-top:2px;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap">${label}</span>
+    </div>`,
+    iconAnchor: [6, 6],
+  });
 }
 
 function userArrowIcon(heading: number | null | undefined): L.DivIcon {
@@ -65,49 +76,32 @@ const radarIcon = L.divIcon({
 export default function GlovesMiniMap({ route, user, leader }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const routeLineRef = useRef<L.Polyline | null>(null);
+  const routeHaloRef = useRef<L.GeoJSON | null>(null);
+  const routeLineRef = useRef<L.GeoJSON | null>(null);
+  const waypointLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const leaderMarkerRef = useRef<L.Marker | null>(null);
-  const radarLayerRef = useRef<L.GeoJSON | null>(null);
-  const radarsRef = useRef<RadarFeature[]>([]);
-  const alertedRadarsRef = useRef<Set<string>>(new Set());
+  const hazardLayerRef = useRef<L.LayerGroup | null>(null);
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const initialFitDoneRef = useRef(false);
   const followRef = useRef(true);
+  const lastPanRef = useRef<L.LatLng | null>(null);
 
   const [followUser, setFollowUser] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+
+  useLeafletInvalidateSize(mapRef, containerRef, mapReady);
 
   const disableFollow = useCallback(() => {
     followRef.current = false;
     setFollowUser(false);
   }, []);
 
-  const checkRadarProximity = useCallback((lat: number, lng: number) => {
-    for (const feature of radarsRef.current) {
-      const [radarLng, radarLat] = feature.geometry.coordinates;
-      const id = feature.properties?.id ?? `${radarLng},${radarLat}`;
-      const name = feature.properties?.name ?? 'Radar';
-      const dist = haversineMeters(lat, lng, radarLat, radarLng);
-
-      if (dist <= RADAR_ALERT_METERS) {
-        if (!alertedRadarsRef.current.has(id)) {
-          alertedRadarsRef.current.add(id);
-          toast({
-            title: '⚠️ Radar próximo',
-            description: `${name} — ~${Math.round(dist)} m`,
-            variant: 'destructive',
-          });
-        }
-      } else if (dist > RADAR_CLEAR_METERS && alertedRadarsRef.current.has(id)) {
-        alertedRadarsRef.current.delete(id);
-      }
-    }
-  }, []);
-
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const latlngs = routeLatLngs(route);
-    const center = latlngs[0] ?? DEFAULT_CENTER;
+    const points = resolveRoutePoints(route);
+    const center: L.LatLngExpression = [points[0].lat, points[0].lng];
 
     const map = L.map(containerRef.current, {
       center,
@@ -121,28 +115,23 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
       attribution: '© OpenStreetMap',
     }).addTo(map);
 
+    waypointLayerRef.current = L.layerGroup().addTo(map);
     map.on('dragstart', disableFollow);
 
-    if (latlngs.length >= 2) {
-      routeLineRef.current = L.polyline(latlngs, {
-        color: '#ea580c',
-        weight: 5,
-        opacity: 0.9,
-      }).addTo(map);
-      map.fitBounds(routeLineRef.current.getBounds(), { padding: [48, 48], maxZoom: 12 });
-    }
+    hazardLayerRef.current = L.layerGroup().addTo(map);
 
-    fetch('/radares.geojson')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((geojson: GeoJSON.FeatureCollection | null) => {
-        if (!geojson?.features?.length || !mapRef.current) return;
-        radarsRef.current = geojson.features.filter(
-          (f): f is RadarFeature => f.geometry?.type === 'Point',
-        );
-        radarLayerRef.current = L.geoJSON(geojson, {
-          pointToLayer: (_feature, latlng) =>
-            L.marker(latlng, { icon: radarIcon }),
-        }).addTo(map);
+    const addHazardMarkers = (geojson: GeoJSON.FeatureCollection | null, icon: L.DivIcon) => {
+      if (!geojson?.features?.length || !hazardLayerRef.current) return;
+      L.geoJSON(geojson, {
+        pointToLayer: (_feature, latlng) => L.marker(latlng, { icon }),
+      }).addTo(hazardLayerRef.current);
+    };
+
+    Promise.all([fetch('/radares.geojson'), fetch('/incidencias.geojson')])
+      .then(async ([rRes, iRes]) => {
+        if (!mapRef.current || !hazardLayerRef.current) return;
+        if (rRes.ok) addHazardMarkers((await rRes.json()) as GeoJSON.FeatureCollection, radarIcon);
+        if (iRes.ok) addHazardMarkers((await iRes.json()) as GeoJSON.FeatureCollection, incidentIcon);
       })
       .catch(() => {});
 
@@ -150,32 +139,68 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
     setMapReady(true);
 
     return () => {
+      routeAbortRef.current?.abort();
+      initialFitDoneRef.current = false;
       map.remove();
       mapRef.current = null;
+      routeHaloRef.current = null;
       routeLineRef.current = null;
+      waypointLayerRef.current = null;
       userMarkerRef.current = null;
       leaderMarkerRef.current = null;
-      radarLayerRef.current = null;
-      radarsRef.current = [];
-      alertedRadarsRef.current.clear();
+      hazardLayerRef.current = null;
+      lastPanRef.current = null;
       setMapReady(false);
     };
-  }, [disableFollow, route]);
+  }, [disableFollow]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    const latlngs = routeLatLngs(route);
-    if (routeLineRef.current) {
-      routeLineRef.current.setLatLngs(latlngs);
-    } else if (latlngs.length >= 2) {
-      routeLineRef.current = L.polyline(latlngs, {
-        color: '#ea580c',
-        weight: 5,
-        opacity: 0.9,
-      }).addTo(map);
-    }
+    const points = resolveRoutePoints(route);
+    const wpLayer = waypointLayerRef.current;
+
+    wpLayer?.clearLayers();
+    points.forEach((wp, i) => {
+      const variant = i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'stop';
+      const label = wp.label ?? (variant === 'start' ? 'Inicio' : variant === 'end' ? 'Fin' : `P${i}`);
+      L.marker([wp.lat, wp.lng], {
+        icon: waypointPinIcon(label, variant),
+        zIndexOffset: 1200,
+      }).addTo(wpLayer!);
+    });
+
+    routeAbortRef.current?.abort();
+    const ac = new AbortController();
+    routeAbortRef.current = ac;
+
+    removeRouteLayers(routeHaloRef, routeLineRef);
+
+    if (points.length < 2) return;
+
+    const coords = points.map((p) => ({ lat: p.lat, lng: p.lng }));
+    const latlngs: L.LatLngExpression[] = coords.map((p) => [p.lat, p.lng]);
+
+    void (async () => {
+      const geometry = await fetchOsrmRouteGeometry(coords, ac.signal);
+      if (ac.signal.aborted || mapRef.current !== map) return;
+
+      let bounds: L.LatLngBounds | null = null;
+      if (geometry) {
+        bounds = drawOsrmRouteOnMap(map, geometry, routeHaloRef, routeLineRef);
+      } else {
+        bounds = drawStraightRouteOnMap(map, latlngs, routeHaloRef, routeLineRef);
+      }
+
+      if (bounds?.isValid() && !initialFitDoneRef.current) {
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 });
+        initialFitDoneRef.current = true;
+        window.setTimeout(() => map.invalidateSize({ animate: false }), 100);
+      }
+    })();
+
+    return () => ac.abort();
   }, [route, mapReady]);
 
   useEffect(() => {
@@ -185,12 +210,14 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
     if (user) {
       const icon = userArrowIcon(user.heading);
       if (!userMarkerRef.current) {
-        userMarkerRef.current = L.marker([user.lat, user.lng], { icon }).addTo(map);
+        userMarkerRef.current = L.marker([user.lat, user.lng], {
+          icon,
+          zIndexOffset: 1500,
+        }).addTo(map);
       } else {
         userMarkerRef.current.setLatLng([user.lat, user.lng]);
         userMarkerRef.current.setIcon(icon);
       }
-      checkRadarProximity(user.lat, user.lng);
     } else {
       userMarkerRef.current?.remove();
       userMarkerRef.current = null;
@@ -198,9 +225,10 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
 
     if (leader) {
       if (!leaderMarkerRef.current) {
-        leaderMarkerRef.current = L.marker([leader.lat, leader.lng], { icon: leaderIcon }).addTo(
-          map,
-        );
+        leaderMarkerRef.current = L.marker([leader.lat, leader.lng], {
+          icon: leaderIcon,
+          zIndexOffset: 1400,
+        }).addTo(map);
       } else {
         leaderMarkerRef.current.setLatLng([leader.lat, leader.lng]);
       }
@@ -208,13 +236,23 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
       leaderMarkerRef.current?.remove();
       leaderMarkerRef.current = null;
     }
-  }, [user, leader, mapReady, checkRadarProximity]);
+  }, [user, leader, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !user || !followRef.current) return;
 
-    map.setView([user.lat, user.lng], Math.max(map.getZoom(), NAV_ZOOM), { animate: true });
+    const target = L.latLng(user.lat, user.lng);
+    const zoom = Math.max(map.getZoom(), NAV_ZOOM);
+    const prev = lastPanRef.current;
+    const movedM = prev ? prev.distanceTo(target) : 999;
+
+    if (movedM > 1) {
+      map.setView(target, zoom, { animate: movedM > 8 });
+      lastPanRef.current = target;
+    } else if (map.getZoom() < NAV_ZOOM) {
+      map.setZoom(NAV_ZOOM);
+    }
   }, [user, mapReady]);
 
   const handleRecenter = () => {
@@ -222,12 +260,18 @@ export default function GlovesMiniMap({ route, user, leader }: Props) {
     if (!map || !user) return;
     followRef.current = true;
     setFollowUser(true);
-    map.setView([user.lat, user.lng], Math.max(map.getZoom(), NAV_ZOOM), { animate: true });
+    const target = L.latLng(user.lat, user.lng);
+    lastPanRef.current = target;
+    map.setView(target, Math.max(map.getZoom(), NAV_ZOOM), { animate: true });
   };
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={containerRef} className="motorutas-leaflet-map gloves-map h-full w-full" aria-label="Mapa GPS en ruta" />
+    <div className="relative h-full w-full min-h-0">
+      <div
+        ref={containerRef}
+        className="motorutas-leaflet-map gloves-map absolute inset-0 h-full w-full"
+        aria-label="Mapa GPS en ruta"
+      />
 
       <button
         type="button"

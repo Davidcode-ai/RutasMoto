@@ -9,7 +9,7 @@ import {
   LogIn,
   Loader2,
 } from 'lucide-react';
-import { $authLoading, $user, loadUser } from '@/stores/auth';
+import { $authLoading, $user } from '@/stores/auth';
 import { isLoggedIn } from '@/lib/api';
 
 const PAGE_LIMIT = 10;
@@ -65,7 +65,7 @@ function RouteCard({ r }: { r: RutaListItem }) {
   return (
     <a
       href={`/rutas/detalle?id=${r.id}`}
-      className="block rounded-2xl border border-border bg-card p-4 transition active:scale-[0.99]"
+      className="btn-press block rounded-2xl border border-border bg-card p-4"
     >
       <div className="flex items-center gap-2">
         <span
@@ -147,7 +147,6 @@ export default function RouteListApp() {
 
   useEffect(() => {
     loadInitial();
-    loadUser().catch(() => {});
   }, [loadInitial]);
 
   useEffect(() => {
@@ -168,9 +167,9 @@ export default function RouteListApp() {
   }, [isLoading, error, items.length, hasMore]);
 
   return (
-    <main className="flex min-h-app w-full flex-1 flex-col bg-background pb-safe-page">
-      <header className="flex items-center justify-between px-4 pt-6">
-        <div>
+    <main className="no-scrollbar-x flex min-h-app w-full min-w-0 flex-1 flex-col bg-background pb-safe-page">
+      <header className="flex min-w-0 items-center justify-between gap-2 px-4 pt-6">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-primary">MotoRutas</h1>
           <p className="text-sm text-muted-foreground">Rutas disponibles</p>
         </div>
@@ -180,14 +179,14 @@ export default function RouteListApp() {
             onClick={() => loadInitial()}
             disabled={isLoading}
             aria-label="Actualizar"
-            className="flex size-10 items-center justify-center rounded-full bg-card ring-1 ring-border disabled:opacity-60"
+            className="btn-press flex size-10 items-center justify-center rounded-full bg-card ring-1 ring-border disabled:opacity-60"
           >
             <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           {!authLoading && !user && !isLoggedIn() && (
             <a
               href="/auth/login"
-              className="flex items-center gap-1 rounded-full bg-card px-3 py-2 text-sm font-semibold ring-1 ring-border"
+              className="btn-press flex items-center gap-1 rounded-full bg-card px-3 py-2 text-sm font-semibold ring-1 ring-border"
             >
               <LogIn className="size-4" />
               Entrar
@@ -195,13 +194,13 @@ export default function RouteListApp() {
           )}
           <a
             href="/perfil"
-            className="rounded-full bg-card px-4 py-2 text-sm font-semibold ring-1 ring-border"
+            className="btn-press rounded-full bg-card px-4 py-2 text-sm font-semibold ring-1 ring-border"
           >
             Perfil
           </a>
           <a
             href="/rutas/crear"
-            className="flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+            className="btn-press flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
           >
             <Plus className="size-4" />
             Crear
@@ -226,7 +225,7 @@ export default function RouteListApp() {
             <button
               type="button"
               onClick={() => loadInitial()}
-              className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+              className="btn-press mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
             >
               Reintentar
             </button>
