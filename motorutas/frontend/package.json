@@ -1,0 +1,31 @@
+{
+  "name": "motorutas-frontend",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.2.0",
+    "@nanostores/react": "^1.0.0",
+    "astro": "^5.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.564.0",
+    "mapbox-gl": "^3.9.0",
+    "nanostores": "^1.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.0",
+    "@types/mapbox-gl": "^3.4.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^5.7.3"
+  }
+}

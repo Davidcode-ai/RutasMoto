@@ -1,0 +1,8 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import RouteListApp from '@/components/route/RouteListApp';
+---
+
+<AppLayout title="MotoRutas — Rutas">
+  <RouteListApp client:only="react" />
+</AppLayout>

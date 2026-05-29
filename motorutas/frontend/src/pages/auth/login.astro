@@ -1,0 +1,8 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import AuthForm from '@/components/auth/AuthForm';
+---
+
+<AppLayout title="Iniciar sesión — MotoRutas">
+  <AuthForm mode="login" client:only="react" />
+</AppLayout>

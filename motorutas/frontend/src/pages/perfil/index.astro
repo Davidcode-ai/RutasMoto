@@ -1,0 +1,8 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import ProfileApp from '@/components/profile/ProfileApp';
+---
+
+<AppLayout title="Mi Perfil — MotoRutas" description="Tu garaje digital y ritmo base">
+  <ProfileApp client:only="react" />
+</AppLayout>

@@ -1,0 +1,14 @@
+{
+  "name": "MotoRutas",
+  "short_name": "MotoRutas",
+  "description": "Organiza rutas en moto sin el caos de WhatsApp",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1f",
+  "theme_color": "#1a1a1f",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

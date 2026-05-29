@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "astro",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://your-api.railway.app/api/$1" }
+  ]
+}
